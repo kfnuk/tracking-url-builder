@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tracking URL Builder</title>
+  <title>Tracking Template Builder</title>
   <link rel="icon" href="icon.png" type="image/png" />
-
+  <link rel="shortcut icon" href="icon.png" type="image/png" />
 
   <!-- Tailwind config for Microsoft look & feel -->
   <script>
@@ -55,10 +55,12 @@
   </style>
 </head>
 <body>
-  <header class="max-w-6xl mx-auto py-10 px-4 md:px-6 flex items-center gap-6 border-b border-ms-grey-20 mb-12">
-
-    <h1 class="d-block">Tracking URL Builder</h1>
-  </header>
+  <header class="bg-ms-blue-light">
+  <div class="max-w-6xl mx-auto py-16 px-4 md:px-6 text-center">
+    <h1 class="d-block">Tracking Template Builder</h1>
+    <p class="mt-4 text-lg md:text-xl">Quickly construct and customise URL tracking templates with ease.</p>
+  </div>
+</header>
 
   <main class="max-w-6xl mx-auto px-4 md:px-6 pb-24 space-y-12">
     <section class="card">
@@ -156,7 +158,7 @@
         const val = valEl.value.trim();
         if (val) params.push(`utm_${key}=${val}`);
       });
-      const custom = document.getElementById('customParams').value.trim(); if (custom) custom.split('&').forEach(p => p.includes('=') && params.push(p)); params.push('gclid={gclid}');
+      const custom = document.getElementById('customParams').value.trim(); if (custom) custom.split('&').forEach(p => p.includes('=') && params.push(p));
       document.getElementById('output').value = `${base}?${params.join('&')}`;
     }
     document.addEventListener('DOMContentLoaded', () => {
