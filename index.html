@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tracking URL Builder</title>
+  <link rel="icon" href="icon.png" type="image/png" />
+
+
+  <!-- Tailwind config for Microsoft look & feel -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    tailwind.config = {
+      theme: {
+        fontFamily: { sans: ['Segoe UI','Helvetica Neue','Helvetica','Arial','sans-serif'] },
+        extend: {
+          colors: {
+            'ms-blue':'#0067b8','ms-blue-dark':'#005a9e','ms-blue-light':'#0078d4',
+            'ms-green':'#107c10','ms-red':'#d83b01',
+            'ms-grey-8':'#f8f8f8','ms-grey-10':'#f3f2f1','ms-grey-20':'#edebe9',
+            'ms-grey-30':'#e1dfdd','ms-grey-40':'#c8c6c4','ms-grey-60':'#a19f9d',
+            'ms-grey-80':'#605e5c','ms-grey-100':'#323130'
+          },
+          boxShadow: { card:'0 2px 4px rgba(0,0,0,0.08)', btn:'0 1px 2px rgba(0,0,0,0.07)', btnH:'0 3px 6px rgba(0,0,0,0.12)' },
+          borderRadius: { md:'4px', lg:'6px' }
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* GLOBAL STYLES */
+    body { background:#f3f2f1; color:#323130; line-height:1.5; font-family:inherit; }
+    h1.d-block { font-weight:600; color:#201f1e; font-size:2rem; line-height:1.2; margin:0; }
+    @media(min-width:768px){ h1.d-block { font-size:2.75rem; } }
+    @media(min-width:1280px){ h1.d-block { font-size:3.5rem; } }
+    h2 { font-weight:600; color:#201f1e; font-size:1.25rem; }
+    @media(min-width:768px){ h2 { font-size:1.5rem; } }
+    .card { background:#fff; border:1px solid #e1dfdd; border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.08); padding:2rem; display:flex; flex-direction:column; gap:1.5rem; }
+    input[type="text"],input[type="url"],textarea,select { width:100%; height:2.75rem; line-height:1.5; padding:0 1rem !important; border:1px solid #c8c6c4; border-radius:4px; font-size:0.875rem; background:#fff; color:#323130; font-family:inherit; }
+    select { padding-right:2.5rem !important; appearance:none !important; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%23605e5c' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat right 1rem center/0.9rem; }
+    select::-ms-expand { display:none; }
+    input:focus,textarea:focus,select:focus { outline:2px solid #0067b8; outline-offset:1px; }
+    textarea[readonly] { background:#edebe9; font-family:Consolas,Monaco,monospace; font-size:0.8125rem; resize:vertical; min-height:6rem; }
+    input[type="checkbox"] { width:1rem; height:1rem; border:1px solid #605e5c; border-radius:2px; accent-color:#0067b8; }
+    .param-row { display:grid; gap:1rem 1.5rem; align-items:center; grid-template-areas:"label" "mode" "value"; grid-template-columns:1fr; }
+    .param-row label.checkbox { display:flex; align-items:center; gap:0.5rem; white-space:nowrap; font-weight:500; color:#605e5c; }
+    @media(min-width:768px){ .param-row { grid-template-areas:"label mode value"; grid-template-columns:repeat(12,minmax(0,1fr)); } .param-row label { grid-column:span 4; } .param-row .mode-select { grid-column:span 2; max-width:11rem; } .param-row .value-wrapper { grid-column:span 6; } }
+    .ms-btn { display:inline-flex; align-items:center; justify-content:center; background:#0067b8; color:#fff; font-weight:500; font-size:0.875rem; border-radius:4px; padding:0 1.5rem; height:2.75rem; box-shadow:0 1px 2px rgba(0,0,0,0.07); transition:all .15s ease; }
+    .ms-btn:hover { background:#005a9e; box-shadow:0 3px 6px rgba(0,0,0,0.12); transform:translateY(-1px); }
+    .ms-btn:active { background:#004578; box-shadow:0 1px 2px rgba(0,0,0,0.14) inset; transform:none; }
+    .bg-ms-green { background:#107c10!important; color:#fff!important; }
+    .d-block { display:block; }
+  </style>
+</head>
+<body>
+  <header class="max-w-6xl mx-auto py-10 px-4 md:px-6 flex items-center gap-6 border-b border-ms-grey-20 mb-12">
+
+    <h1 class="d-block">Tracking URL Builder</h1>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 md:px-6 pb-24 space-y-12">
+    <section class="card">
+      <h2>Settings</h2>
+      <div class="grid md:grid-cols-12 gap-y-6 gap-x-6 items-center">
+        <label for="finalUrl" class="md:col-span-3 font-medium text-ms-grey-80 whitespace-nowrap">Final URL</label>
+        <input type="url" id="finalUrl" placeholder="https://www.example.com/page" value="https://www.example.com/page" class="md:col-span-9">
+      </div>
+      <label class="flex items-center gap-3 font-medium text-ms-grey-80"><input type="checkbox" id="enableParallel" checked>Enable Parallel Tracking (use Final URL instead of <code class="font-mono">{lpurl}</code>)</label>
+    </section>
+
+    <section class="card">
+      <h2>UTM Parameters</h2>
+
+      <div class="param-row" data-param="source">
+        <label class="checkbox"><input type="checkbox" id="chk-source" checked><span>Include <code class="font-mono">utm_source</code></span></label>
+        <select id="mode-source" class="mode-select"><option value="custom" selected>Custom</option><option value="vt">ValueTrack</option></select>
+        <div class="value-wrapper flex gap-2">
+          <select id="vt-source" class="custom-select hidden"></select>
+          <input type="text" id="custom-source" value="google" placeholder="Your value">
+        </div>
+      </div>
+
+      <div class="param-row" data-param="medium">
+        <label class="checkbox"><input type="checkbox" id="chk-medium" checked><span>Include <code class="font-mono">utm_medium</code></span></label>
+        <select id="mode-medium" class="mode-select"><option value="custom" selected>Custom</option><option value="vt">ValueTrack</option></select>
+        <div class="value-wrapper flex gap-2">
+          <select id="vt-medium" class="custom-select hidden"></select>
+          <input type="text" id="custom-medium" value="cpc" placeholder="Your value">
+        </div>
+      </div>
+
+      <div class="param-row" data-param="campaign">
+        <label class="checkbox"><input type="checkbox" id="chk-campaign" checked><span>Include <code class="font-mono">utm_campaign</code></span></label>
+        <select id="mode-campaign" class="mode-select"><option value="vt" selected>ValueTrack</option><<option value="custom">Custom</option></select>
+        <div class="value-wrapper flex gap-2">
+          <select id="vt-campaign" class="custom-select"></select>
+          <input type="text" id="custom-campaign" class="hidden" placeholder="Your value">
+        </div>
+      </div>
+
+      <div class="param-row" data-param="term">
+        <label class="checkbox"><input type="checkbox" id="chk-term" checked><span>Include <code class="font-mono">utm_term</code></span></label>
+        <select id="mode-term" class="mode-select"><option value="vt" selected>ValueTrack</option><option value="custom">Custom</option></select>
+        <div class="value-wrapper flex gap-2">
+          <select id="vt-term" class="custom-select"></select>
+          <input type="text" id="custom-term" class="hidden" placeholder="Your value">
+        </div>
+      </div>
+
+      <div class="param-row" data-param="content">
+        <label class="checkbox"><input type="checkbox" id="chk-content" checked><span>Include <code class="font-mono">utm_content</code></span></label>
+        <select id="mode-content" class="mode-select"><option value="vt" selected>ValueTrack</option><option value="custom">Custom</option></select>
+        <div class="value-wrapper flex gap-2">
+          <select id="vt-content" class="custom-select"></select>
+          <input type="text" id="custom-content" class="hidden" placeholder="Your value">
+        </div>
+      </div>
+
+      <hr class="border-ms-grey-30 my-6">
+
+      <div class="grid md:grid-cols-12 gap-y-6 gap-x-6 items-start">
+        <label for="customParams" class="md:col-span-3 font-medium text-ms-grey-80 whitespace-nowrap">Custom Params <span class="text-ms-grey-60">(optional)</span></label>
+        <textarea id="customParams" rows="3" placeholder="param1=value1&param2=value2" class="md:col-span-9"></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h2>Generated Template</h2>
+        <button id="copyBtn" class="ms-btn bg-ms-blue">Copy Template</button>
+      </div>
+      <textarea id="output" readonly class="w-full rounded-lg p-4 text-sm"></textarea>
+    </section>
+  </main>
+
+  <script>
+    const valueTrackOptions = ['{adgroupid}','{campaignid}','{creative}','{keyword}','{placement}','{network}','{device}','{matchtype}','{adposition}','{feeditemid}','{targetid}','{loc_physical_ms}','{loc_interest_ms}','{gclid}'];
+    function fillVTSelects() {
+      document.querySelectorAll('select.custom-select').forEach(sel => { sel.innerHTML = ''; valueTrackOptions.forEach(opt => { const o = document.createElement('option'); o.value = o.textContent = opt; sel.appendChild(o); }); });
+    }
+    function toggleMode(row) {
+      const mode = row.querySelector('.mode-select').value;
+      row.querySelector('select.custom-select').classList.toggle('hidden', mode !== 'vt');
+      row.querySelector('input[type="text"]').classList.toggle('hidden', mode === 'vt');
+    }
+    function buildTemplate() {
+      const base = document.getElementById('enableParallel').checked ? document.getElementById('finalUrl').value : '{lpurl}';
+      const params = [];
+      document.querySelectorAll('.param-row').forEach(row => {
+        if (!row.querySelector('input[type="checkbox"]').checked) return;
+        const key = row.dataset.param;
+        const mode = row.querySelector('.mode-select').value;
+        const valEl = mode === 'vt' ? row.querySelector('select.custom-select') : row.querySelector('input[type="text"]');
+        const val = valEl.value.trim();
+        if (val) params.push(`utm_${key}=${val}`);
+      });
+      const custom = document.getElementById('customParams').value.trim(); if (custom) custom.split('&').forEach(p => p.includes('=') && params.push(p)); params.push('gclid={gclid}');
+      document.getElementById('output').value = `${base}?${params.join('&')}`;
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      fillVTSelects();
+      document.querySelectorAll('.param-row').forEach(toggleMode);
+      document.querySelectorAll('select.mode-select').forEach(sel => { sel.addEventListener('change', () => { toggleMode(sel.closest('.param-row')); buildTemplate(); }); });
+      document.querySelectorAll('select.custom-select').forEach(sel => { sel.addEventListener('change', buildTemplate); });
+      document.querySelectorAll('input[type="text"], input[type="url"], input[type="checkbox"], textarea').forEach(el => { el.addEventListener('input', buildTemplate); el.addEventListener('change', buildTemplate); });
+      document.getElementById('copyBtn').addEventListener('click', () => { const out = document.getElementById('output'); out.select(); document.execCommand('copy'); const btn = document.getElementById('copyBtn'); btn.classList.add('bg-ms-green'); setTimeout(() => btn.classList.remove('bg-ms-green'), 1000); });
+      buildTemplate();
+    });
+  </script>
+</body>
+</html>
