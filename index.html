@@ -8,7 +8,6 @@
   <link rel="icon" href="icon.png" type="image/png" />
   <link rel="shortcut icon" href="icon.png" type="image/png" />
 
-  <!-- Tailwind config for Microsoft look & feel -->
   <script>
     window.tailwind = window.tailwind || {};
     tailwind.config = {
@@ -42,6 +41,7 @@
     select { padding-right:2.5rem !important; appearance:none !important; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%23605e5c' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat right 1rem center/0.9rem; }
     select::-ms-expand { display:none; }
     input:focus,textarea:focus,select:focus { outline:2px solid #0067b8; outline-offset:1px; }
+    input.invalid-url { border-color: #d83b01; } /* MS Red for invalid URL */
     textarea[readonly] { background:#edebe9; font-family:Consolas,Monaco,monospace; font-size:0.8125rem; resize:vertical; min-height:6rem; }
     input[type="checkbox"] { width:1rem; height:1rem; border:1px solid #605e5c; border-radius:2px; accent-color:#0067b8; }
     .param-row { display:grid; gap:1rem 1.5rem; align-items:center; grid-template-areas:"label" "mode" "value"; grid-template-columns:1fr; }
@@ -52,6 +52,7 @@
     .ms-btn:active { background:#004578; box-shadow:0 1px 2px rgba(0,0,0,0.14) inset; transform:none; }
     .bg-ms-green { background:#107c10!important; color:#fff!important; }
     .d-block { display:block; }
+    .final-url-error-msg { color: #d83b01; font-size: 0.8rem; margin-top: 0.25rem; display: none; } /* Style for error message */
   </style>
 </head>
 <body>
@@ -67,7 +68,10 @@
       <h2>Settings</h2>
       <div class="grid md:grid-cols-12 gap-y-6 gap-x-6 items-center">
         <label for="finalUrl" class="md:col-span-3 font-medium text-ms-grey-80 whitespace-nowrap">Final URL</label>
-        <input type="url" id="finalUrl" placeholder="https://www.example.com/page" value="https://www.example.com/page" class="md:col-span-9">
+        <div class="md:col-span-9">
+            <input type="url" id="finalUrl" placeholder="https://www.example.com/page" value="https://www.example.com/page" class="w-full">
+            <p id="finalUrlError" class="final-url-error-msg">Please enter a valid URL (e.g., https://example.com).</p>
+        </div>
       </div>
       <label class="flex items-center gap-3 font-medium text-ms-grey-80"><input type="checkbox" id="enableParallel" checked>Enable Parallel Tracking (use Final URL instead of <code class="font-mono">{lpurl}</code>)</label>
     </section>
@@ -95,7 +99,7 @@
 
       <div class="param-row" data-param="campaign">
         <label class="checkbox"><input type="checkbox" id="chk-campaign" checked><span>Include <code class="font-mono">utm_campaign</code></span></label>
-        <select id="mode-campaign" class="mode-select"><option value="vt" selected>ValueTrack</option><<option value="custom">Custom</option></select>
+        <select id="mode-campaign" class="mode-select"><option value="vt" selected>ValueTrack</option><option value="custom">Custom</option></select> 
         <div class="value-wrapper flex gap-2">
           <select id="vt-campaign" class="custom-select"></select>
           <input type="text" id="custom-campaign" class="hidden" placeholder="Your value">
@@ -122,7 +126,7 @@
 
       <hr class="border-ms-grey-30 my-6">
 
-      <div class="grid md:grid-cols-12 gap-y-6 gap-x-6 items-start">
+      <div class="grid md:grid-cols-12 gap-y-6 gap-x-6 items-start mt-2">
         <label for="customParams" class="md:col-span-3 font-medium text-ms-grey-80 whitespace-nowrap">Custom Params <span class="text-ms-grey-60">(optional)</span></label>
         <textarea id="customParams" rows="3" placeholder="param1=value1&param2=value2" class="md:col-span-9"></textarea>
       </div>
@@ -133,42 +137,190 @@
         <h2>Generated Template</h2>
         <button id="copyBtn" class="ms-btn bg-ms-blue">Copy Template</button>
       </div>
-      <textarea id="output" readonly class="w-full rounded-lg p-4 text-sm"></textarea>
+      <textarea id="output" readonly class="w-full rounded-lg p-4 text-sm" aria-live="polite"></textarea> 
     </section>
   </main>
 
   <script>
+    // --- Cached DOM Elements ---
+    const finalUrlInput = document.getElementById('finalUrl');
+    const finalUrlErrorMsg = document.getElementById('finalUrlError');
+    const enableParallelCheckbox = document.getElementById('enableParallel');
+    const outputTextarea = document.getElementById('output');
+    const customParamsTextarea = document.getElementById('customParams');
+    const copyBtn = document.getElementById('copyBtn');
+    const paramRows = document.querySelectorAll('.param-row');
+    const allInputs = document.querySelectorAll('input[type="text"], input[type="url"], input[type="checkbox"], textarea, select.custom-select, select.mode-select');
+
+
     const valueTrackOptions = ['{adgroupid}','{campaignid}','{creative}','{keyword}','{placement}','{network}','{device}','{matchtype}','{adposition}','{feeditemid}','{targetid}','{loc_physical_ms}','{loc_interest_ms}','{gclid}'];
+    const vtDescriptions = {
+        '{adgroupid}': 'The ID of the ad group.',
+        '{campaignid}': 'The ID of the campaign.',
+        '{creative}': 'A unique ID for your ad (also known as ad ID).',
+        '{keyword}': 'The keyword from your account that matched the search query, or the keyword that drove a display ad.',
+        '{placement}': 'The content site where your ad was displayed (for Display Network campaigns).',
+        '{network}': 'The network that the click came from: "g" for Google search, "s" for a search partner, or "d" for the Display Network.',
+        '{device}': 'The type of device the click came from: "m" for mobile, "t" for tablet, or "c" for computer.',
+        '{matchtype}': 'The match type of the keyword that triggered your ad: "e" for exact, "p" for phrase, or "b" for broad.',
+        '{adposition}': 'The position of your ad on the page, e.g., "1t2" (page 1, top, position 2).',
+        '{feeditemid}': 'The ID of the extension that was clicked.',
+        '{targetid}': 'The ID of the keyword ("kwd"), dynamic search ad ("dsa") target, remarketing list target ("aud"), or product partition ("pla") that triggered an ad.',
+        '{loc_physical_ms}': 'The geographical ID of the physical location of the user.',
+        '{loc_interest_ms}': 'The geographical ID of the location of interest that triggered the ad.',
+        '{gclid}': 'Google Click ID, used for tracking conversions.'
+    };
+
     function fillVTSelects() {
-      document.querySelectorAll('select.custom-select').forEach(sel => { sel.innerHTML = ''; valueTrackOptions.forEach(opt => { const o = document.createElement('option'); o.value = o.textContent = opt; sel.appendChild(o); }); });
+      document.querySelectorAll('select.custom-select').forEach(sel => {
+        sel.innerHTML = ''; // Clear existing options
+        valueTrackOptions.forEach(opt => {
+          const o = document.createElement('option');
+          o.value = o.textContent = opt;
+          if (vtDescriptions[opt]) {
+            o.title = vtDescriptions[opt]; // Add tooltip for description
+          }
+          sel.appendChild(o);
+        });
+      });
     }
+
     function toggleMode(row) {
-      const mode = row.querySelector('.mode-select').value;
+      const modeSelect = row.querySelector('.mode-select');
+      const mode = modeSelect.value;
       row.querySelector('select.custom-select').classList.toggle('hidden', mode !== 'vt');
       row.querySelector('input[type="text"]').classList.toggle('hidden', mode === 'vt');
     }
+
+    // --- Final URL Validation ---
+    function validateFinalUrl() {
+        const urlValue = finalUrlInput.value.trim();
+        // Basic URL validation: checks for http(s):// and a domain.
+        // This is a simple regex and might not cover all edge cases of valid URLs.
+        const isValid = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/.test(urlValue) || urlValue === '{lpurl}';
+        if (urlValue && !isValid) {
+            finalUrlInput.classList.add('invalid-url');
+            finalUrlErrorMsg.style.display = 'block';
+            return false;
+        } else {
+            finalUrlInput.classList.remove('invalid-url');
+            finalUrlErrorMsg.style.display = 'none';
+            return true;
+        }
+    }
+
     function buildTemplate() {
-      const base = document.getElementById('enableParallel').checked ? document.getElementById('finalUrl').value : '{lpurl}';
+      if (!validateFinalUrl() && enableParallelCheckbox.checked) {
+        outputTextarea.value = 'Error: Final URL is invalid.';
+        return;
+      }
+
+      const base = enableParallelCheckbox.checked ? finalUrlInput.value.trim() : '{lpurl}';
       const params = [];
-      document.querySelectorAll('.param-row').forEach(row => {
+
+      paramRows.forEach(row => {
         if (!row.querySelector('input[type="checkbox"]').checked) return;
         const key = row.dataset.param;
         const mode = row.querySelector('.mode-select').value;
         const valEl = mode === 'vt' ? row.querySelector('select.custom-select') : row.querySelector('input[type="text"]');
         const val = valEl.value.trim();
-        if (val) params.push(`utm_${key}=${val}`);
+        if (val) {
+          params.push(`utm_${key}=${encodeURIComponent(val)}`); // URL encode value
+        }
       });
-      const custom = document.getElementById('customParams').value.trim(); if (custom) custom.split('&').forEach(p => p.includes('=') && params.push(p));
-      document.getElementById('output').value = `${base}?${params.join('&')}`;
+
+      const custom = customParamsTextarea.value.trim();
+      if (custom) {
+        custom.split('&').forEach(p => {
+          const firstEquals = p.indexOf('=');
+          if (firstEquals !== -1) {
+            const customKey = p.substring(0, firstEquals).trim();
+            const customVal = p.substring(firstEquals + 1).trim();
+            if (customKey && customVal) { // Ensure both key and value are not empty after trimming
+              params.push(`${encodeURIComponent(customKey)}=${encodeURIComponent(customVal)}`); // URL encode key and value
+            }
+          }
+        });
+      }
+      outputTextarea.value = params.length > 0 ? `${base}?${params.join('&')}` : base;
     }
+
     document.addEventListener('DOMContentLoaded', () => {
       fillVTSelects();
-      document.querySelectorAll('.param-row').forEach(toggleMode);
-      document.querySelectorAll('select.mode-select').forEach(sel => { sel.addEventListener('change', () => { toggleMode(sel.closest('.param-row')); buildTemplate(); }); });
-      document.querySelectorAll('select.custom-select').forEach(sel => { sel.addEventListener('change', buildTemplate); });
-      document.querySelectorAll('input[type="text"], input[type="url"], input[type="checkbox"], textarea').forEach(el => { el.addEventListener('input', buildTemplate); el.addEventListener('change', buildTemplate); });
-      document.getElementById('copyBtn').addEventListener('click', () => { const out = document.getElementById('output'); out.select(); document.execCommand('copy'); const btn = document.getElementById('copyBtn'); btn.classList.add('bg-ms-green'); setTimeout(() => btn.classList.remove('bg-ms-green'), 1000); });
-      buildTemplate();
+
+      paramRows.forEach(row => {
+        toggleMode(row); // Apply initial mode visibility
+
+        // Set smarter initial default ValueTrack selections
+        const modeSelect = row.querySelector('.mode-select');
+        if (modeSelect.value === 'vt') {
+          const paramName = row.dataset.param;
+          const vtSelect = row.querySelector('select.custom-select');
+          let defaultVTValue = '';
+          switch (paramName) {
+            case 'campaign': defaultVTValue = '{campaignid}'; break;
+            case 'term': defaultVTValue = '{keyword}'; break;
+            case 'content': defaultVTValue = '{creative}'; break;
+          }
+          if (defaultVTValue && Array.from(vtSelect.options).some(opt => opt.value === defaultVTValue)) {
+            vtSelect.value = defaultVTValue;
+          }
+        }
+      });
+
+      // Event listeners for dynamic updates
+      allInputs.forEach(el => {
+        el.addEventListener('input', buildTemplate); // For text inputs, textareas
+        el.addEventListener('change', buildTemplate); // For selects, checkboxes
+      });
+
+      finalUrlInput.addEventListener('input', validateFinalUrl); // Validate Final URL on input
+
+      // Event listeners for mode toggling and smarter defaults on change
+      document.querySelectorAll('select.mode-select').forEach(sel => {
+        sel.addEventListener('change', () => {
+          const row = sel.closest('.param-row');
+          toggleMode(row);
+          if (sel.value === 'vt') {
+            const paramName = row.dataset.param;
+            const vtSelect = row.querySelector('select.custom-select');
+            let defaultVTValue = '';
+            switch (paramName) {
+                case 'campaign': defaultVTValue = '{campaignid}'; break;
+                case 'term': defaultVTValue = '{keyword}'; break;
+                case 'content': defaultVTValue = '{creative}'; break;
+            }
+            if (defaultVTValue && Array.from(vtSelect.options).some(opt => opt.value === defaultVTValue)) {
+                vtSelect.value = defaultVTValue;
+            }
+          }
+          buildTemplate();
+        });
+      });
+
+      // Copy button functionality
+      copyBtn.addEventListener('click', () => {
+        const template = outputTextarea.value;
+        const originalBtnText = copyBtn.textContent;
+
+        navigator.clipboard.writeText(template).then(() => {
+          copyBtn.textContent = 'Copied!';
+          copyBtn.classList.add('bg-ms-green');
+          setTimeout(() => {
+            copyBtn.classList.remove('bg-ms-green');
+            copyBtn.textContent = originalBtnText;
+          }, 1500);
+        }).catch(err => {
+          console.error('Failed to copy template: ', err);
+          copyBtn.textContent = 'Copy Failed';
+           setTimeout(() => {
+            copyBtn.textContent = originalBtnText;
+          }, 1500);
+        });
+      });
+
+      validateFinalUrl(); // Initial validation
+      buildTemplate(); // Initial template build
     });
   </script>
 </body>
